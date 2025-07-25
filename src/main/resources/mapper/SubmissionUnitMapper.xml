@@ -1,0 +1,76 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.ectd.backend.mapper.SubmissionUnitMapper">
+
+    <resultMap id="BaseResultMap" type="com.ectd.backend.model.SubmissionUnit">
+        <id column="su_id" property="suId" jdbcType="BIGINT"/>
+        <result column="app_id" property="appId" jdbcType="BIGINT"/>
+        <result column="sequence_num" property="sequenceNum" jdbcType="INTEGER"/>
+        <result column="effective_date" property="effectiveDate" jdbcType="DATE"/>
+        <result column="su_type" property="suType" jdbcType="VARCHAR"/>
+        <result column="su_unit_type" property="suUnitType" jdbcType="VARCHAR"/>
+        <result column="cou_data" property="couData" jdbcType="VARCHAR"/>
+        <result column="created_at" property="createdAt" jdbcType="TIMESTAMP"/>
+        <result column="updated_at" property="updatedAt" jdbcType="TIMESTAMP"/>
+        <result column="status" property="status" jdbcType="VARCHAR"/>
+    </resultMap>
+
+    <sql id="Base_Column_List">
+        su_id, app_id, sequence_num, effective_date, su_type, su_unit_type, 
+        cou_data, created_at, updated_at, status
+    </sql>
+
+    <select id="findById" resultMap="BaseResultMap">
+        SELECT <include refid="Base_Column_List"/>
+        FROM ectd_submission_unit 
+        WHERE su_id = #{suId}
+    </select>
+
+    <select id="findByAppId" resultMap="BaseResultMap">
+        SELECT <include refid="Base_Column_List"/>
+        FROM ectd_submission_unit 
+        WHERE app_id = #{appId}
+        ORDER BY sequence_num ASC
+    </select>
+
+    <select id="findByAppIdAndSequence" resultMap="BaseResultMap">
+        SELECT <include refid="Base_Column_List"/>
+        FROM ectd_submission_unit 
+        WHERE app_id = #{appId} AND sequence_num = #{sequenceNum}
+    </select>
+
+    <select id="findAll" resultMap="BaseResultMap">
+        SELECT <include refid="Base_Column_List"/>
+        FROM ectd_submission_unit 
+        ORDER BY created_at DESC
+    </select>
+
+    <insert id="insert" useGeneratedKeys="true" keyProperty="suId">
+        INSERT INTO ectd_submission_unit (app_id, sequence_num, effective_date, su_type, su_unit_type, cou_data, status)
+        VALUES (#{appId}, #{sequenceNum}, #{effectiveDate}, #{suType}, #{suUnitType}, #{couData, jdbcType=VARCHAR}, #{status})
+    </insert>
+
+    <update id="update">
+        UPDATE ectd_submission_unit
+        SET app_id = #{appId},
+            sequence_num = #{sequenceNum},
+            effective_date = #{effectiveDate},
+            su_type = #{suType},
+            su_unit_type = #{suUnitType},
+            cou_data = #{couData, jdbcType=VARCHAR},
+            status = #{status}
+        WHERE su_id = #{suId}
+    </update>
+
+    <delete id="deleteById">
+        DELETE FROM ectd_submission_unit WHERE su_id = #{suId}
+    </delete>
+
+    <select id="getNextSequenceNum" resultType="int">
+        SELECT COALESCE(MAX(sequence_num), 0) + 1 
+        FROM ectd_submission_unit 
+        WHERE app_id = #{appId}
+    </select>
+
+</mapper>
+

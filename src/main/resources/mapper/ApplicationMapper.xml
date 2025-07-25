@@ -1,0 +1,60 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.ectd.backend.mapper.ApplicationMapper">
+
+    <resultMap id="BaseResultMap" type="com.ectd.backend.model.Application">
+        <id column="app_id" property="appId" jdbcType="BIGINT"/>
+        <result column="app_number" property="appNumber" jdbcType="VARCHAR"/>
+        <result column="app_type" property="appType" jdbcType="VARCHAR"/>
+        <result column="created_at" property="createdAt" jdbcType="TIMESTAMP"/>
+        <result column="updated_at" property="updatedAt" jdbcType="TIMESTAMP"/>
+        <result column="root_section" property="rootSection" jdbcType="VARCHAR"/>
+        <result column="status" property="status" jdbcType="VARCHAR"/>
+    </resultMap>
+
+    <sql id="Base_Column_List">
+        app_id, app_number, app_type, created_at, updated_at, root_section, status
+    </sql>
+
+    <select id="findByAppNumber" resultMap="BaseResultMap">
+        SELECT <include refid="Base_Column_List"/>
+        FROM ectd_application 
+        WHERE app_number = #{appNumber}
+    </select>
+
+    <select id="findById" resultMap="BaseResultMap">
+        SELECT <include refid="Base_Column_List"/>
+        FROM ectd_application 
+        WHERE app_id = #{appId}
+    </select>
+
+    <select id="findAll" resultMap="BaseResultMap">
+        SELECT <include refid="Base_Column_List"/>
+        FROM ectd_application 
+        ORDER BY created_at DESC
+    </select>
+
+    <insert id="insert" useGeneratedKeys="true" keyProperty="appId">
+        INSERT INTO ectd_application (app_number, app_type, root_section, status)
+        VALUES (#{appNumber}, #{appType}, #{rootSection, jdbcType=VARCHAR}, #{status})
+    </insert>
+
+    <update id="update">
+        UPDATE ectd_application
+        SET app_number = #{appNumber},
+            app_type = #{appType},
+            root_section = #{rootSection, jdbcType=VARCHAR},
+            status = #{status}
+        WHERE app_id = #{appId}
+    </update>
+
+    <delete id="deleteById">
+        DELETE FROM ectd_application WHERE app_id = #{appId}
+    </delete>
+
+    <select id="count" resultType="int">
+        SELECT COUNT(*) FROM ectd_application
+    </select>
+
+</mapper>
+
