@@ -2,6 +2,8 @@ package com.ectd.backend.service;
 
 import com.ectd.backend.mapper.SubmissionUnitMapper;
 import com.ectd.backend.model.SubmissionUnit;
+import com.ectd.backend.model.CoUOperation;
+import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -9,12 +11,14 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
 /**
  * Submission Unit Service
- * Business logic for eCTD Submission Unit management
+ * Business logic for eCTD Submission Unit management with CoU operations array support
  */
 @Service
 @Transactional
@@ -34,7 +38,7 @@ public class SubmissionUnitService {
      * @param effectiveDate Effective date
      * @param suType Submission type
      * @param suUnitType Submission unit type
-     * @param couDataJson CoU data JSON string
+     * @param couDataJson CoU data JSON string (optional)
      * @return Created submission unit
      * @throws JsonProcessingException If JSON processing fails
      */
@@ -46,9 +50,12 @@ public class SubmissionUnitService {
             throw new IllegalArgumentException("Application not found: " + appId);
         }
 
-        // Validate CoU data JSON format if provided
-        if (couDataJson != null && !couDataJson.trim().isEmpty()) {
-            objectMapper.readTree(couDataJson);
+        // Initialize empty CoU operations array if not provided
+        if (couDataJson == null || couDataJson.trim().isEmpty()) {
+            couDataJson = "[]";
+        } else {
+            // Validate CoU data JSON format
+            parseCouData(couDataJson);
         }
 
         // Get next sequence number
@@ -122,7 +129,7 @@ public class SubmissionUnitService {
     }
 
     /**
-     * Update CoU data for a submission unit
+     * Update CoU data for a submission unit (replace entire array)
      * @param suId Submission unit ID
      * @param couDataJson CoU data JSON string
      * @return Updated submission unit
@@ -131,7 +138,9 @@ public class SubmissionUnitService {
     public SubmissionUnit updateCouData(Long suId, String couDataJson) throws JsonProcessingException {
         // Validate JSON format
         if (couDataJson != null && !couDataJson.trim().isEmpty()) {
-            objectMapper.readTree(couDataJson);
+            parseCouData(couDataJson);
+        } else {
+            couDataJson = "[]";
         }
         
         SubmissionUnit su = submissionUnitMapper.findById(suId);
@@ -145,6 +154,112 @@ public class SubmissionUnitService {
     }
 
     /**
+     * Add a single CoU operation to the specified Submission Unit
+     * @param suId Submission Unit ID
+     * @param couOperation CoU operation object
+     * @return Updated Submission Unit
+     */
+    public SubmissionUnit addCouOperation(Long suId, CoUOperation couOperation) {
+        SubmissionUnit submissionUnit = submissionUnitMapper.findById(suId);
+        if (submissionUnit == null) {
+            throw new IllegalArgumentException("Submission Unit not found with id: " + suId);
+        }
+
+        try {
+            // Parse existing CoU data
+            List<CoUOperation> couOperations = parseCouData(submissionUnit.getCouData());
+            
+            // Set operation metadata
+            couOperation.setSuId(String.valueOf(suId));
+            couOperation.setTimestamp(LocalDateTime.now());
+            
+            // Generate CoU ID if not provided
+            if (couOperation.getCouId() == null || couOperation.getCouId().trim().isEmpty()) {
+                couOperation.setCouId("COU_" + System.currentTimeMillis() + "_" + (int)(Math.random() * 1000));
+            }
+            
+            // Add new operation to array
+            couOperations.add(couOperation);
+            
+            // Serialize back to JSON string
+            String updatedCouData = objectMapper.writeValueAsString(couOperations);
+            
+            // Update database
+            submissionUnit.setCouData(updatedCouData);
+            submissionUnitMapper.update(submissionUnit);
+            
+            return submissionUnit;
+            
+        } catch (Exception e) {
+            throw new RuntimeException("Failed to add CoU operation: " + e.getMessage(), e);
+        }
+    }
+
+    /**
+     * Get all CoU operations for the specified Submission Unit
+     * @param suId Submission Unit ID
+     * @return List of CoU operations
+     */
+    public List<CoUOperation> getCouOperations(Long suId) {
+        SubmissionUnit submissionUnit = submissionUnitMapper.findById(suId);
+        if (submissionUnit == null) {
+            return new ArrayList<>();
+        }
+        
+        return parseCouData(submissionUnit.getCouData());
+    }
+
+    /**
+     * Remove a specific CoU operation
+     * @param suId Submission Unit ID
+     * @param couId CoU operation ID
+     * @return Updated Submission Unit
+     */
+    public SubmissionUnit removeCouOperation(Long suId, String couId) {
+        SubmissionUnit submissionUnit = submissionUnitMapper.findById(suId);
+        if (submissionUnit == null) {
+            throw new IllegalArgumentException("Submission Unit not found with id: " + suId);
+        }
+
+        try {
+            // Parse existing CoU data
+            List<CoUOperation> couOperations = parseCouData(submissionUnit.getCouData());
+            
+            // Remove the specified operation
+            couOperations.removeIf(op -> couId.equals(op.getCouId()));
+            
+            // Serialize back to JSON string
+            String updatedCouData = objectMapper.writeValueAsString(couOperations);
+            
+            // Update database
+            submissionUnit.setCouData(updatedCouData);
+            submissionUnitMapper.update(submissionUnit);
+            
+            return submissionUnit;
+            
+        } catch (Exception e) {
+            throw new RuntimeException("Failed to remove CoU operation: " + e.getMessage(), e);
+        }
+    }
+
+    /**
+     * Parse CoU data string to CoU operations list
+     * @param couDataJson CoU data JSON string
+     * @return List of CoU operations
+     */
+    private List<CoUOperation> parseCouData(String couDataJson) {
+        if (couDataJson == null || couDataJson.trim().isEmpty()) {
+            return new ArrayList<>();
+        }
+        
+        try {
+            return objectMapper.readValue(couDataJson, new TypeReference<List<CoUOperation>>() {});
+        } catch (Exception e) {
+            throw new RuntimeException("Invalid CoU data format: " + e.getMessage(), e);
+        }
+    }
+
+    /**
      * Create sample CoU data for testing
      * @param operationType Operation type (add, replace, delete)
      * @param nodeId Node ID
@@ -153,16 +268,17 @@ public class SubmissionUnitService {
      * @throws JsonProcessingException If JSON processing fails
      */
     public String createSampleCouData(String operationType, Long nodeId, String documentPath) throws JsonProcessingException {
-        Map<String, Object> couData = Map.of(
-            "operations", List.of(
-                Map.of(
-                    "type", operationType,
-                    "nodeId", nodeId,
-                    "documentPath", documentPath
-                )
-            )
+        CoUOperation.DocumentInfo document = new CoUOperation.DocumentInfo(
+            "doc-" + System.currentTimeMillis(),
+            "Sample Document",
+            "PDF",
+            documentPath
         );
-        return objectMapper.writeValueAsString(couData);
+        
+        CoUOperation operation = new CoUOperation(operationType, null, nodeId, document);
+        List<CoUOperation> operations = List.of(operation);
+        
+        return objectMapper.writeValueAsString(operations);
     }
 }
 

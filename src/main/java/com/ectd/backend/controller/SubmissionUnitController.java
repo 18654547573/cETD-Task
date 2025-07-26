@@ -1,22 +1,25 @@
 package com.ectd.backend.controller;
 
 import com.ectd.backend.model.SubmissionUnit;
+import com.ectd.backend.model.CoUOperation;
 import com.ectd.backend.service.SubmissionUnitService;
+import com.fasterxml.jackson.core.JsonProcessingException;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.format.annotation.DateTimeFormat;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDate;
-import java.time.format.DateTimeParseException;
 import java.util.List;
 import java.util.Map;
 
 /**
- * Submission Unit Controller
- * REST API endpoints for eCTD Submission Unit management
+ * Submission Unit REST Controller
+ * Handles HTTP requests for eCTD Submission Unit management with CoU operations support
  */
 @RestController
-@RequestMapping("/submission-units")
+@RequestMapping("/api/submission-units")
 @CrossOrigin(origins = "*")
 public class SubmissionUnitController {
 
@@ -24,43 +27,31 @@ public class SubmissionUnitController {
     private SubmissionUnitService submissionUnitService;
 
     /**
-     * Create a new submission unit
-     * @param payload Request payload
-     * @return Created submission unit
+     * Get all submission units
+     * @return List of submission units
      */
-    @PostMapping
-    public ResponseEntity<?> createSubmissionUnit(@RequestBody Map<String, Object> payload) {
+    @GetMapping
+    public ResponseEntity<List<SubmissionUnit>> getAllSubmissionUnits() {
         try {
-            Long appId = Long.valueOf(payload.get("appId").toString());
-            String effectiveDateStr = (String) payload.get("effectiveDate");
-            String suType = (String) payload.get("suType");
-            String suUnitType = (String) payload.get("suUnitType");
-            String couDataJson = (String) payload.get("couData");
-            
-            if (appId == null) {
-                return ResponseEntity.badRequest().body("Application ID is required");
-            }
-            if (effectiveDateStr == null || effectiveDateStr.trim().isEmpty()) {
-                return ResponseEntity.badRequest().body("Effective date is required");
-            }
-            if (suType == null || suType.trim().isEmpty()) {
-                return ResponseEntity.badRequest().body("Submission type is required");
-            }
-            if (suUnitType == null || suUnitType.trim().isEmpty()) {
-                return ResponseEntity.badRequest().body("Submission unit type is required");
-            }
-            
-            LocalDate effectiveDate = LocalDate.parse(effectiveDateStr);
-            
-            SubmissionUnit su = submissionUnitService.createSubmissionUnit(
-                appId, effectiveDate, suType.trim(), suUnitType.trim(), couDataJson);
-            return ResponseEntity.ok(su);
-        } catch (DateTimeParseException e) {
-            return ResponseEntity.badRequest().body("Invalid date format. Use YYYY-MM-DD");
-        } catch (IllegalArgumentException e) {
-            return ResponseEntity.badRequest().body(e.getMessage());
+            List<SubmissionUnit> submissionUnits = submissionUnitService.getAllSubmissionUnits();
+            return ResponseEntity.ok(submissionUnits);
         } catch (Exception e) {
-            return ResponseEntity.internalServerError().body("Internal server error: " + e.getMessage());
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
+        }
+    }
+
+    /**
+     * Get submission units by application ID
+     * @param appId Application ID
+     * @return List of submission units
+     */
+    @GetMapping("/by-app/{appId}")
+    public ResponseEntity<List<SubmissionUnit>> getSubmissionUnitsByAppId(@PathVariable Long appId) {
+        try {
+            List<SubmissionUnit> submissionUnits = submissionUnitService.getSubmissionUnitsByAppId(appId);
+            return ResponseEntity.ok(submissionUnits);
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
         }
     }
 
@@ -70,174 +61,172 @@ public class SubmissionUnitController {
      * @return SubmissionUnit entity
      */
     @GetMapping("/{suId}")
-    public ResponseEntity<?> getSubmissionUnitById(@PathVariable Long suId) {
+    public ResponseEntity<SubmissionUnit> getSubmissionUnitById(@PathVariable Long suId) {
         try {
-            SubmissionUnit su = submissionUnitService.getSubmissionUnitById(suId);
-            if (su == null) {
+            SubmissionUnit submissionUnit = submissionUnitService.getSubmissionUnitById(suId);
+            if (submissionUnit != null) {
+                return ResponseEntity.ok(submissionUnit);
+            } else {
                 return ResponseEntity.notFound().build();
             }
-            return ResponseEntity.ok(su);
         } catch (Exception e) {
-            return ResponseEntity.internalServerError().body("Internal server error: " + e.getMessage());
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
         }
     }
 
     /**
-     * Get all submission units for an application
-     * @param appId Application ID
-     * @return List of submission units
+     * Create a new submission unit
+     * @param requestBody Request body containing submission unit data
+     * @return Created submission unit
      */
-    @GetMapping("/by-app/{appId}")
-    public ResponseEntity<?> getSubmissionUnitsByAppId(@PathVariable Long appId) {
+    @PostMapping
+    public ResponseEntity<SubmissionUnit> createSubmissionUnit(@RequestBody Map<String, Object> requestBody) {
         try {
-            List<SubmissionUnit> sus = submissionUnitService.getSubmissionUnitsByAppId(appId);
-            return ResponseEntity.ok(sus);
-        } catch (Exception e) {
-            return ResponseEntity.internalServerError().body("Internal server error: " + e.getMessage());
-        }
-    }
+            Long appId = Long.valueOf(requestBody.get("appId").toString());
+            LocalDate effectiveDate = LocalDate.parse(requestBody.get("effectiveDate").toString());
+            String suType = requestBody.get("suType").toString();
+            String suUnitType = requestBody.get("suUnitType").toString();
+            String couData = requestBody.get("couData") != null ? requestBody.get("couData").toString() : null;
 
-    /**
-     * Get submission unit by application ID and sequence number
-     * @param appId Application ID
-     * @param sequenceNum Sequence number
-     * @return SubmissionUnit entity
-     */
-    @GetMapping("/by-app/{appId}/sequence/{sequenceNum}")
-    public ResponseEntity<?> getSubmissionUnitByAppIdAndSequence(@PathVariable Long appId, @PathVariable Integer sequenceNum) {
-        try {
-            SubmissionUnit su = submissionUnitService.getSubmissionUnitByAppIdAndSequence(appId, sequenceNum);
-            if (su == null) {
-                return ResponseEntity.notFound().build();
-            }
-            return ResponseEntity.ok(su);
+            SubmissionUnit submissionUnit = submissionUnitService.createSubmissionUnit(
+                appId, effectiveDate, suType, suUnitType, couData);
+            return ResponseEntity.status(HttpStatus.CREATED).body(submissionUnit);
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().build();
+        } catch (JsonProcessingException e) {
+            return ResponseEntity.badRequest().build();
         } catch (Exception e) {
-            return ResponseEntity.internalServerError().body("Internal server error: " + e.getMessage());
-        }
-    }
-
-    /**
-     * Get all submission units
-     * @return List of submission units
-     */
-    @GetMapping
-    public ResponseEntity<?> getAllSubmissionUnits() {
-        try {
-            List<SubmissionUnit> sus = submissionUnitService.getAllSubmissionUnits();
-            return ResponseEntity.ok(sus);
-        } catch (Exception e) {
-            return ResponseEntity.internalServerError().body("Internal server error: " + e.getMessage());
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
         }
     }
 
     /**
      * Update submission unit
      * @param suId Submission unit ID
-     * @param payload Request payload
+     * @param submissionUnit Updated submission unit data
      * @return Updated submission unit
      */
     @PutMapping("/{suId}")
-    public ResponseEntity<?> updateSubmissionUnit(@PathVariable Long suId, @RequestBody Map<String, Object> payload) {
+    public ResponseEntity<SubmissionUnit> updateSubmissionUnit(
+            @PathVariable Long suId, @RequestBody SubmissionUnit submissionUnit) {
         try {
-            SubmissionUnit su = submissionUnitService.getSubmissionUnitById(suId);
-            if (su == null) {
-                return ResponseEntity.notFound().build();
-            }
-
-            // Update fields if provided
-            if (payload.containsKey("effectiveDate")) {
-                String effectiveDateStr = (String) payload.get("effectiveDate");
-                su.setEffectiveDate(LocalDate.parse(effectiveDateStr));
-            }
-            if (payload.containsKey("suType")) {
-                su.setSuType((String) payload.get("suType"));
-            }
-            if (payload.containsKey("suUnitType")) {
-                su.setSuUnitType((String) payload.get("suUnitType"));
-            }
-            if (payload.containsKey("couData")) {
-                su.setCouData((String) payload.get("couData"));
-            }
-            if (payload.containsKey("status")) {
-                su.setStatus((String) payload.get("status"));
-            }
-
-            SubmissionUnit updatedSu = submissionUnitService.updateSubmissionUnit(su);
-            return ResponseEntity.ok(updatedSu);
-        } catch (DateTimeParseException e) {
-            return ResponseEntity.badRequest().body("Invalid date format. Use YYYY-MM-DD");
+            submissionUnit.setSuId(suId);
+            SubmissionUnit updated = submissionUnitService.updateSubmissionUnit(submissionUnit);
+            return ResponseEntity.ok(updated);
         } catch (Exception e) {
-            return ResponseEntity.internalServerError().body("Internal server error: " + e.getMessage());
-        }
-    }
-
-    /**
-     * Update CoU data for a submission unit
-     * @param suId Submission unit ID
-     * @param payload Request payload containing couData
-     * @return Updated submission unit
-     */
-    @PutMapping("/{suId}/cou-data")
-    public ResponseEntity<?> updateCouData(@PathVariable Long suId, @RequestBody Map<String, String> payload) {
-        try {
-            String couDataJson = payload.get("couData");
-            
-            SubmissionUnit updatedSu = submissionUnitService.updateCouData(suId, couDataJson);
-            return ResponseEntity.ok(updatedSu);
-        } catch (IllegalArgumentException e) {
-            return ResponseEntity.badRequest().body(e.getMessage());
-        } catch (Exception e) {
-            return ResponseEntity.internalServerError().body("Internal server error: " + e.getMessage());
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
         }
     }
 
     /**
      * Delete submission unit
      * @param suId Submission unit ID
-     * @return Success message
+     * @return Success response
      */
     @DeleteMapping("/{suId}")
-    public ResponseEntity<?> deleteSubmissionUnit(@PathVariable Long suId) {
+    public ResponseEntity<Void> deleteSubmissionUnit(@PathVariable Long suId) {
         try {
-            SubmissionUnit su = submissionUnitService.getSubmissionUnitById(suId);
-            if (su == null) {
-                return ResponseEntity.notFound().build();
-            }
-            
             submissionUnitService.deleteSubmissionUnit(suId);
-            return ResponseEntity.ok("Submission Unit deleted successfully");
+            return ResponseEntity.noContent().build();
         } catch (Exception e) {
-            return ResponseEntity.internalServerError().body("Internal server error: " + e.getMessage());
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
+        }
+    }
+
+    /**
+     * Update CoU data for a submission unit (replace entire array)
+     * @param suId Submission unit ID
+     * @param requestBody Request body containing CoU data
+     * @return Updated submission unit
+     */
+    @PutMapping("/{suId}/cou-data")
+    public ResponseEntity<SubmissionUnit> updateCouData(
+            @PathVariable Long suId, @RequestBody Map<String, String> requestBody) {
+        try {
+            String couData = requestBody.get("couData");
+            SubmissionUnit updated = submissionUnitService.updateCouData(suId, couData);
+            return ResponseEntity.ok(updated);
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.notFound().build();
+        } catch (JsonProcessingException e) {
+            return ResponseEntity.badRequest().build();
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
+        }
+    }
+
+    /**
+     * Add a single CoU operation to the submission unit
+     * @param suId Submission unit ID
+     * @param couOperation CoU operation to add
+     * @return Updated submission unit
+     */
+    @PostMapping("/{suId}/cou-operations")
+    public ResponseEntity<SubmissionUnit> addCouOperation(
+            @PathVariable Long suId, @RequestBody CoUOperation couOperation) {
+        try {
+            SubmissionUnit updated = submissionUnitService.addCouOperation(suId, couOperation);
+            return ResponseEntity.ok(updated);
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.notFound().build();
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
+        }
+    }
+
+    /**
+     * Get all CoU operations for a submission unit
+     * @param suId Submission unit ID
+     * @return List of CoU operations
+     */
+    @GetMapping("/{suId}/cou-operations")
+    public ResponseEntity<List<CoUOperation>> getCouOperations(@PathVariable Long suId) {
+        try {
+            List<CoUOperation> operations = submissionUnitService.getCouOperations(suId);
+            return ResponseEntity.ok(operations);
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
+        }
+    }
+
+    /**
+     * Remove a specific CoU operation from the submission unit
+     * @param suId Submission unit ID
+     * @param couId CoU operation ID
+     * @return Updated submission unit
+     */
+    @DeleteMapping("/{suId}/cou-operations/{couId}")
+    public ResponseEntity<SubmissionUnit> removeCouOperation(
+            @PathVariable Long suId, @PathVariable String couId) {
+        try {
+            SubmissionUnit updated = submissionUnitService.removeCouOperation(suId, couId);
+            return ResponseEntity.ok(updated);
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.notFound().build();
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
         }
     }
 
     /**
      * Create sample CoU data for testing
-     * @param payload Request payload
+     * @param operationType Operation type
+     * @param nodeId Node ID
+     * @param documentPath Document path
      * @return Sample CoU data JSON
      */
-    @PostMapping("/sample-cou-data")
-    public ResponseEntity<?> createSampleCouData(@RequestBody Map<String, Object> payload) {
+    @GetMapping("/sample-cou-data")
+    public ResponseEntity<String> createSampleCouData(
+            @RequestParam String operationType,
+            @RequestParam Long nodeId,
+            @RequestParam String documentPath) {
         try {
-            String operationType = (String) payload.get("operationType");
-            Long nodeId = Long.valueOf(payload.get("nodeId").toString());
-            String documentPath = (String) payload.get("documentPath");
-            
-            if (operationType == null || operationType.trim().isEmpty()) {
-                return ResponseEntity.badRequest().body("Operation type is required");
-            }
-            if (nodeId == null) {
-                return ResponseEntity.badRequest().body("Node ID is required");
-            }
-            if (documentPath == null || documentPath.trim().isEmpty()) {
-                return ResponseEntity.badRequest().body("Document path is required");
-            }
-            
-            String couDataJson = submissionUnitService.createSampleCouData(
-                operationType.trim(), nodeId, documentPath.trim());
-            return ResponseEntity.ok(Map.of("couData", couDataJson));
+            String sampleData = submissionUnitService.createSampleCouData(operationType, nodeId, documentPath);
+            return ResponseEntity.ok(sampleData);
+        } catch (JsonProcessingException e) {
+            return ResponseEntity.badRequest().build();
         } catch (Exception e) {
-            return ResponseEntity.internalServerError().body("Internal server error: " + e.getMessage());
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
         }
     }
 }
