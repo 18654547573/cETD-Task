@@ -19,7 +19,7 @@ import java.util.Map;
  * Handles HTTP requests for eCTD Submission Unit management with CoU operations support
  */
 @RestController
-@RequestMapping("/api/submission-units")
+@RequestMapping("/submission-units")
 @CrossOrigin(origins = "*")
 public class SubmissionUnitController {
 
@@ -168,8 +168,10 @@ public class SubmissionUnitController {
             SubmissionUnit updated = submissionUnitService.addCouOperation(suId, couOperation);
             return ResponseEntity.ok(updated);
         } catch (IllegalArgumentException e) {
+            e.printStackTrace();
             return ResponseEntity.notFound().build();
         } catch (Exception e) {
+            e.printStackTrace();
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
         }
     }
@@ -185,6 +187,7 @@ public class SubmissionUnitController {
             List<CoUOperation> operations = submissionUnitService.getCouOperations(suId);
             return ResponseEntity.ok(operations);
         } catch (Exception e) {
+            e.printStackTrace();
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
         }
     }

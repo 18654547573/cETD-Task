@@ -12,6 +12,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -42,8 +43,8 @@ public class SubmissionUnitService {
      * @return Created submission unit
      * @throws JsonProcessingException If JSON processing fails
      */
-    public SubmissionUnit createSubmissionUnit(Long appId, LocalDate effectiveDate, 
-                                             String suType, String suUnitType, 
+    public SubmissionUnit createSubmissionUnit(Long appId, LocalDate effectiveDate,
+                                             String suType, String suUnitType,
                                              String couDataJson) throws JsonProcessingException {
         // Validate that application exists
         if (applicationService.getApplicationById(appId) == null) {
@@ -142,12 +143,12 @@ public class SubmissionUnitService {
         } else {
             couDataJson = "[]";
         }
-        
+
         SubmissionUnit su = submissionUnitMapper.findById(suId);
         if (su == null) {
             throw new IllegalArgumentException("Submission Unit not found: " + suId);
         }
-        
+
         su.setCouData(couDataJson);
         submissionUnitMapper.update(su);
         return su;
@@ -168,29 +169,32 @@ public class SubmissionUnitService {
         try {
             // Parse existing CoU data
             List<CoUOperation> couOperations = parseCouData(submissionUnit.getCouData());
-            
+
             // Set operation metadata
             couOperation.setSuId(String.valueOf(suId));
             couOperation.setTimestamp(LocalDateTime.now());
-            
+
             // Generate CoU ID if not provided
             if (couOperation.getCouId() == null || couOperation.getCouId().trim().isEmpty()) {
                 couOperation.setCouId("COU_" + System.currentTimeMillis() + "_" + (int)(Math.random() * 1000));
             }
-            
+
             // Add new operation to array
             couOperations.add(couOperation);
-            
+            for(CoUOperation lod:couOperations){
+                lod.setTimestamp(null);
+            }
             // Serialize back to JSON string
             String updatedCouData = objectMapper.writeValueAsString(couOperations);
-            
+
             // Update database
             submissionUnit.setCouData(updatedCouData);
             submissionUnitMapper.update(submissionUnit);
-            
+
             return submissionUnit;
-            
+
         } catch (Exception e) {
+            e.printStackTrace();
             throw new RuntimeException("Failed to add CoU operation: " + e.getMessage(), e);
         }
     }
@@ -205,7 +209,7 @@ public class SubmissionUnitService {
         if (submissionUnit == null) {
             return new ArrayList<>();
         }
-        
+
         return parseCouData(submissionUnit.getCouData());
     }
 
@@ -224,19 +228,19 @@ public class SubmissionUnitService {
         try {
             // Parse existing CoU data
             List<CoUOperation> couOperations = parseCouData(submissionUnit.getCouData());
-            
+
             // Remove the specified operation
             couOperations.removeIf(op -> couId.equals(op.getCouId()));
-            
+
             // Serialize back to JSON string
             String updatedCouData = objectMapper.writeValueAsString(couOperations);
-            
+
             // Update database
             submissionUnit.setCouData(updatedCouData);
             submissionUnitMapper.update(submissionUnit);
-            
+
             return submissionUnit;
-            
+
         } catch (Exception e) {
             throw new RuntimeException("Failed to remove CoU operation: " + e.getMessage(), e);
         }
@@ -251,10 +255,11 @@ public class SubmissionUnitService {
         if (couDataJson == null || couDataJson.trim().isEmpty()) {
             return new ArrayList<>();
         }
-        
+
         try {
             return objectMapper.readValue(couDataJson, new TypeReference<List<CoUOperation>>() {});
         } catch (Exception e) {
+            e.printStackTrace();
             throw new RuntimeException("Invalid CoU data format: " + e.getMessage(), e);
         }
     }
@@ -274,10 +279,10 @@ public class SubmissionUnitService {
             "PDF",
             documentPath
         );
-        
+
         CoUOperation operation = new CoUOperation(operationType, null, nodeId, document);
         List<CoUOperation> operations = List.of(operation);
-        
+
         return objectMapper.writeValueAsString(operations);
     }
 }
